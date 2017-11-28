@@ -1,4 +1,4 @@
-package storage
+package walk
 
 import (
 	"fmt"
@@ -44,7 +44,7 @@ func testFS(t *testing.T) (driver.StorageDriver, map[string]string, context.Cont
 func TestWalkErrors(t *testing.T) {
 	d, expected, ctx := testFS(t)
 	fileCount := len(expected)
-	err := Walk(ctx, d, "", func(fileInfo driver.FileInfo) error {
+	err := driver.Walk(ctx, d, "", func(fileInfo driver.FileInfo) error {
 		return nil
 	})
 	if err == nil {
@@ -53,7 +53,7 @@ func TestWalkErrors(t *testing.T) {
 
 	errEarlyExpected := fmt.Errorf("Early termination")
 
-	err = Walk(ctx, d, "/", func(fileInfo driver.FileInfo) error {
+	err = driver.Walk(ctx, d, "/", func(fileInfo driver.FileInfo) error {
 		// error on the 2nd file
 		if fileInfo.Path() == "/a/b" {
 			return errEarlyExpected
@@ -73,7 +73,7 @@ func TestWalkErrors(t *testing.T) {
 		}
 	}
 
-	err = Walk(ctx, d, "/nonexistent", func(fileInfo driver.FileInfo) error {
+	err = driver.Walk(ctx, d, "/nonexistent", func(fileInfo driver.FileInfo) error {
 		return nil
 	})
 	if err == nil {
@@ -85,7 +85,7 @@ func TestWalkErrors(t *testing.T) {
 func TestWalk(t *testing.T) {
 	d, expected, ctx := testFS(t)
 	var traversed []string
-	err := Walk(ctx, d, "/", func(fileInfo driver.FileInfo) error {
+	err := driver.Walk(ctx, d, "/", func(fileInfo driver.FileInfo) error {
 		filePath := fileInfo.Path()
 		filetype, ok := expected[filePath]
 		if !ok {
@@ -127,11 +127,11 @@ func TestWalk(t *testing.T) {
 
 func TestWalkSkipDir(t *testing.T) {
 	d, expected, ctx := testFS(t)
-	err := Walk(ctx, d, "/", func(fileInfo driver.FileInfo) error {
+	err := driver.Walk(ctx, d, "/", func(fileInfo driver.FileInfo) error {
 		filePath := fileInfo.Path()
 		if filePath == "/a/b" {
 			// skip processing /a/b/c and /a/b/c/d
-			return ErrSkipDir
+			return driver.ErrSkipDir
 		}
 		delete(expected, filePath)
 		return nil

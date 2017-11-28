@@ -236,7 +236,7 @@ func (lbs *linkedBlobStore) Enumerate(ctx context.Context, ingestor func(digest.
 	if err != nil {
 		return err
 	}
-	err = Walk(ctx, lbs.blobStore.driver, rootPath, func(fileInfo driver.FileInfo) error {
+	err = driver.Walk(ctx, lbs.blobStore.driver, rootPath, func(fileInfo driver.FileInfo) error {
 		// exit early if directory...
 		if fileInfo.IsDir() {
 			return nil

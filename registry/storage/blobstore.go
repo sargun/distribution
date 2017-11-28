@@ -93,7 +93,7 @@ func (bs *blobStore) Enumerate(ctx context.Context, ingester func(dgst digest.Di
 		return err
 	}
 
-	err = Walk(ctx, bs.driver, specPath, func(fileInfo driver.FileInfo) error {
+	err = driver.Walk(ctx, bs.driver, specPath, func(fileInfo driver.FileInfo) error {
 		// skip directories
 		if fileInfo.IsDir() {
 			return nil

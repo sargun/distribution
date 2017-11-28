@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"fmt"
+
 	ctx "github.com/docker/distribution/context"
 	storagedriver "github.com/docker/distribution/registry/storage/driver"
 	"github.com/docker/distribution/registry/storage/driver/testsuites"
