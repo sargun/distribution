@@ -68,7 +68,7 @@ const (
 )
 
 // listMax is the largest amount of objects you can request from S3 in a list call
-const listMax = 1000
+const listMax = 5000
 
 // noStorageClass defines the value to be used if storage class is not supported by the S3 endpoint
 const noStorageClass = "NONE"
@@ -657,6 +657,145 @@ func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 
 	return append(files, directories...), nil
 }
+
+type walkInfoContainer struct {
+	storagedriver.FileInfoFields
+	prefix *string
+}
+
+// Path provides the full path of the target of this file info.
+func (wi walkInfoContainer) Path() string {
+	return wi.FileInfoFields.Path
+}
+
+// Size returns current length in bytes of the file. The return value can
+// be used to write to the end of the file at path. The value is
+// meaningless if IsDir returns true.
+func (wi walkInfoContainer) Size() int64 {
+	return wi.FileInfoFields.Size
+}
+
+// ModTime returns the modification time for the file. For backends that
+// don't have a modification time, the creation time should be returned.
+func (wi walkInfoContainer) ModTime() time.Time {
+	return wi.FileInfoFields.ModTime
+}
+
+// IsDir returns true if the path is a directory.
+func (wi walkInfoContainer) IsDir() bool {
+	return wi.FileInfoFields.IsDir
+}
+
+// Walk traverses a filesystem defined within driver, starting
+// from the given path, calling f on each file
+func (d *driver) Walk(ctx context.Context, from string, f storagedriver.WalkFn) error {
+	var objectCount int64
+
+	path := from
+	if path != "/" && path[len(path)-1] != '/' {
+		path = path + "/"
+	}
+
+	prefix := ""
+	if d.s3Path("") == "" {
+		prefix = "/"
+	}
+
+	if err := d.doWalk(ctx, &objectCount, d.s3Path(path), prefix, f); err != nil {
+		return err
+	}
+
+	if objectCount == 0 {
+		return storagedriver.PathNotFoundError{Path: from}
+	}
+
+	return nil
+}
+
+func (d *driver) doWalk(ctx context.Context, objectCount *int64, path, prefix string, f storagedriver.WalkFn) error {
+	var retError error
+
+	// fmt.Printf("Called with path=%s prefix=%s", path, prefix)
+	listObjectsInput := &s3.ListObjectsV2Input{
+		Bucket:    aws.String(d.Bucket),
+		Prefix:    aws.String(path),
+		Delimiter: aws.String("/"),
+		MaxKeys:   aws.Int64(listMax),
+	}
+
+	listObjectErr := d.S3.ListObjectsV2Pages(listObjectsInput, func(objects *s3.ListObjectsV2Output, lastPage bool) bool {
+		_, done := context.WithTrace(ctx)
+		defer done("s3aws.ListObjectsV2Pages(%s)", *objects.Prefix)
+
+		*objectCount += *objects.KeyCount
+		walkInfos := make([]walkInfoContainer, *objects.KeyCount)
+		i := 0
+		for _, dir := range objects.CommonPrefixes {
+			commonPrefix := *dir.Prefix
+			walkInfos[i] = walkInfoContainer{
+				prefix: dir.Prefix,
+				FileInfoFields: storagedriver.FileInfoFields{
+					IsDir: true,
+					Path: strings.Replace(commonPrefix[0:len(commonPrefix)-1], d.s3Path(""), prefix, 1),
+				},
+			}
+			i++
+		}
+
+		for _, file := range objects.Contents {
+			walkInfos[i] = walkInfoContainer{
+				FileInfoFields: storagedriver.FileInfoFields{
+					IsDir: false,
+					Size: *file.Size,
+					ModTime: *file.LastModified,
+					Path:  strings.Replace(*file.Key, d.s3Path(""), prefix, 1),
+				},
+			}
+			i++
+		}
+
+		sort.SliceStable(walkInfos, func(i, j int) bool { return walkInfos[i].FileInfoFields.Path < walkInfos[j].FileInfoFields.Path})
+
+		for _, walkInfo := range walkInfos {
+			// Should we check if they actually skipped a directory?
+			err := f(walkInfo)
+	//		fmt.Println(walkInfo)
+	//		fmt.Println(err)
+//			fmt.Println()
+
+			if err == storagedriver.ErrSkipDir {
+				if walkInfo.IsDir() {
+					continue
+				} else {
+					break
+				}
+			} else if err != nil {
+				retError = err
+				return false
+			}
+
+			if walkInfo.IsDir() {
+				//fmt.Println("RECURSE")
+				if err := d.doWalk(ctx, objectCount, *walkInfo.prefix, prefix, f); err != nil {
+					retError = err
+					return false
+				}
+			}
+		}
+		return true
+	})
+
+	if retError != nil {
+		return retError
+	}
+
+	if listObjectErr != nil {
+		return listObjectErr
+	}
+
+	return nil
+}
+
 
 // Move moves an object stored at sourcePath to destPath, removing the original
 // object.

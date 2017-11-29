@@ -70,6 +70,10 @@ type StorageDriver interface {
 	//given path.
 	List(ctx context.Context, path string) ([]string, error)
 
+	// Walk traverses a filesystem defined within driver, starting
+	// from the given path, calling f on each file
+	Walk(ctx context.Context, from string, f WalkFn) error
+
 	// Move moves an object stored at sourcePath to destPath, removing the
 	// original object.
 	// Note: This may be no more efficient than a copy followed by a delete for

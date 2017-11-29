@@ -411,6 +411,12 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 	return storagedriver.FileInfoInternal{FileInfoFields: fi}, nil
 }
 
+// Walk traverses a filesystem defined within driver, starting
+// from the given path, calling f on each file
+func (d *driver) Walk(ctx context.Context, from string, f storagedriver.WalkFn) error {
+	return storagedriver.Walk(ctx, d, from, f)
+}
+
 // List returns a list of the objects that are direct descendants of the given path.
 func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 	path := opath

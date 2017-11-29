@@ -201,6 +201,12 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 	return entries, nil
 }
 
+// Walk traverses a filesystem defined within driver, starting
+// from the given path, calling f on each file
+func (d *driver) Walk(ctx context.Context, from string, f storagedriver.WalkFn) error {
+	return storagedriver.Walk(ctx, d, from, f)
+}
+
 // Move moves an object stored at sourcePath to destPath, removing the original
 // object.
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {

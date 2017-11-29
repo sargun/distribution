@@ -276,6 +276,12 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 	return d.client.DeleteBlob(d.container, sourcePath, nil)
 }
 
+// Walk traverses a filesystem defined within driver, starting
+// from the given path, calling f on each file
+func (d *driver) Walk(ctx context.Context, from string, f storagedriver.WalkFn) error {
+	return storagedriver.Walk(ctx, d, from, f)
+}
+
 // Delete recursively deletes all objects stored at "path" and its subpaths.
 func (d *driver) Delete(ctx context.Context, path string) error {
 	ok, err := d.client.DeleteBlobIfExists(d.container, path, nil)

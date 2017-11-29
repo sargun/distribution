@@ -158,6 +158,19 @@ func (base *Base) List(ctx context.Context, path string) ([]string, error) {
 	return str, base.setDriverName(e)
 }
 
+// Walk wraps Walk of underlying storage driver.
+func (base *Base) Walk(ctx context.Context, path string, f storagedriver.WalkFn) error {
+	ctx, done := context.WithTrace(ctx)
+	defer done("%s.Walk(%q)", base.Name(), path)
+
+	if !storagedriver.PathRegexp.MatchString(path) && path != "/" {
+		return storagedriver.InvalidPathError{Path: path, DriverName: base.StorageDriver.Name()}
+	}
+
+	err := base.StorageDriver.Walk(ctx, path, f)
+	return base.setDriverName(err)
+}
+
 // Move wraps Move of underlying storage driver.
 func (base *Base) Move(ctx context.Context, sourcePath string, destPath string) error {
 	ctx, done := context.WithTrace(ctx)
@@ -196,3 +209,16 @@ func (base *Base) URLFor(ctx context.Context, path string, options map[string]in
 	str, e := base.StorageDriver.URLFor(ctx, path, options)
 	return str, base.setDriverName(e)
 }
+
+/*
+type storageDriverWithWalk interface {
+	Walk(ctx context.Context, from string, f storagedriver.WalkFn) error
+}
+
+func (base *Base) Walk(ctx context.Context, from string, f storagedriver.WalkFn) error {
+	if driver, ok := base.StorageDriver.(storageDriverWithWalk); ok {
+		return driver.Walk(ctx, from, f)
+	}
+	return storagedriver.Walk(ctx, base.StorageDriver, from, f)
+}
+*/

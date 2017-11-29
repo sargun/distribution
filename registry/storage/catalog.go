@@ -19,6 +19,7 @@ var errFinishedWalk = errors.New("finished walk")
 // an initial set of repositories.
 func (reg *registry) Repositories(ctx context.Context, repos []string, last string) (n int, err error) {
 	var foundRepos []string
+    var finishedWalk bool
 
 	if len(repos) == 0 {
 		return 0, errors.New("no space in slice")
@@ -29,7 +30,7 @@ func (reg *registry) Repositories(ctx context.Context, repos []string, last stri
 		return 0, err
 	}
 
-	err = driver.Walk(ctx, reg.blobStore.driver, root, func(fileInfo driver.FileInfo) error {
+	err = reg.blobStore.driver.Walk(ctx, root, func(fileInfo driver.FileInfo) error {
 		err := handleRepository(fileInfo, root, last, func(repoPath string) error {
 			foundRepos = append(foundRepos, repoPath)
 			return nil
@@ -40,7 +41,8 @@ func (reg *registry) Repositories(ctx context.Context, repos []string, last stri
 
 		// if we've filled our array, no need to walk any further
 		if len(foundRepos) == len(repos) {
-			return errFinishedWalk
+			finishedWalk=true
+			return driver.ErrSkipDir
 		}
 
 		return nil
@@ -48,14 +50,10 @@ func (reg *registry) Repositories(ctx context.Context, repos []string, last stri
 
 	n = copy(repos, foundRepos)
 
-	switch err {
-	case nil:
-		// nil means that we completed walk and didn't fill buffer. No more
-		// records are available.
+	// We completed walk and didn't fill buffer. No more
+	// records are available.
+	if err == nil && !finishedWalk  {
 		err = io.EOF
-	case errFinishedWalk:
-		// more records are available.
-		err = nil
 	}
 
 	return n, err
