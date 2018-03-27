@@ -932,6 +932,10 @@ func (wi walkInfoContainer) IsDir() bool {
 func (d *driver) doWalk(parentCtx context.Context, objectCount *int64, path, prefix string, f storagedriver.WalkFn) error {
 	var retError error
 
+	if objectCount == nil {
+		panic("Object count must not be nil")
+	}
+
 	listObjectsInput := &s3.ListObjectsV2Input{
 		Bucket:    aws.String(d.Bucket),
 		Prefix:    aws.String(path),
@@ -942,6 +946,13 @@ func (d *driver) doWalk(parentCtx context.Context, objectCount *int64, path, pre
 	ctx, done := dcontext.WithTrace(parentCtx)
 	defer done("s3aws.ListObjectsV2Pages(%s)", path)
 	listObjectErr := d.S3.ListObjectsV2PagesWithContext(ctx, listObjectsInput, func(objects *s3.ListObjectsV2Output, lastPage bool) bool {
+
+		if objects == nil {
+			panic("Objects is nil, S3 client failure")
+		}
+		if objects.KeyCount == nil {
+			panic("Keycount is not initialized")
+		}
 
 		*objectCount += *objects.KeyCount
 		walkInfos := make([]walkInfoContainer, 0, *objects.KeyCount)
