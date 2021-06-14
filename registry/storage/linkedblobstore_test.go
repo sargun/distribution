@@ -116,7 +116,11 @@ func TestLinkedBlobStoreCreateWithMountFrom(t *testing.T) {
 		if err := option.Apply(&createOpts); err != nil {
 			t.Fatalf("failed to apply MountFrom option: %v", err)
 		}
-		if !createOpts.Mount.ShouldMount || createOpts.Mount.From.String() != fooCanonical.String() {
+		mount, ok := createOpts.Mount.(distribution.FromMount)
+		if !ok {
+			t.Fatalf("Expected mount to be FromMount")
+		}
+		if mount.From.String() != fooCanonical.String() {
 			t.Fatalf("unexpected create options: %#+v", createOpts.Mount)
 		}
 
@@ -254,11 +258,13 @@ func (f statCrossMountCreateOption) Apply(v interface{}) error {
 		return fmt.Errorf("Unexpected create options: %#v", v)
 	}
 
-	if !opts.Mount.ShouldMount {
+	if opts.Mount != nil {
 		return nil
 	}
 
-	opts.Mount.Stat = &f.desc
+	opts.Mount = distribution.StatMount{
+		Stat: &f.desc,
+	}
 
 	return nil
 }
